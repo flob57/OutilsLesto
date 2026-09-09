@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050806">
+  <title>Outils Lesto — Conducteur</title>
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><div class="eyebrow">OUTILS LESTO</div><h1>🚌 Mon SAE conducteur</h1><p id="todayLabel">Chargement…</p></div>
+    <button id="settingsBtn" class="icon-btn" aria-label="Paramètres">⚙️</button>
+  </header>
+  <main>
+    <section id="setupCard" class="panel">
+      <span class="eyebrow">NOUVELLE COURSE</span><h2>Choisir la ligne et l’horaire</h2>
+      <label for="lineSelect">Ligne</label><select id="lineSelect" disabled><option>Chargement des lignes…</option></select>
+      <label for="departureSelect">Horaire de départ</label><select id="departureSelect" disabled><option>Choisis d’abord une ligne</option></select>
+      <div id="coursePreview" class="course-preview hidden"></div>
+      <div class="setup-actions"><button id="refreshBtn" class="secondary">↻ Actualiser</button><button id="startBtn" class="primary" disabled>▶ Démarrer la course</button></div>
+      <p id="setupStatus" class="status"></p>
+    </section>
+
+    <section id="runScreen" class="hidden">
+      <div class="run-header panel"><div><span class="eyebrow">COURSE EN COURS</span><h2 id="runTitle">—</h2><p id="runMeta">—</p></div><button id="stopRunBtn" class="danger">■ Terminer</button></div>
+      <section class="panel current-stop">
+        <div class="stop-kicker">ARRÊT ACTUEL</div><div id="currentStopName" class="current-stop-name">—</div>
+        <div class="time-row"><div><span>Théorique</span><strong id="currentScheduled">—</strong></div><div><span>Passage</span><strong id="currentActual">—</strong></div><div><span>Écart</span><strong id="currentDelay">—</strong></div></div>
+        <div class="distance-box"><span>Distance jusqu’à l’arrêt</span><strong id="currentDistance">GPS désactivé</strong></div>
+        <div class="counts">
+          <div class="count-control"><span>⬆️ Montées</span><div><button data-count="boardings" data-delta="-1">−</button><strong id="boardings">0</strong><button data-count="boardings" data-delta="1">+</button></div></div>
+          <div class="count-control"><span>⬇️ Descentes</span><div><button data-count="alightings" data-delta="-1">−</button><strong id="alightings">0</strong><button data-count="alightings" data-delta="1">+</button></div></div>
+          <div class="onboard">👥 <span id="onboard">0</span> à bord</div>
+        </div>
+        <div class="validation-actions"><button id="validateBtn" class="primary big">✓ Valider l’arrêt et passer au suivant</button><button id="gpsToggleBtn" class="secondary">📍 Activer le GPS</button></div>
+      </section>
+      <section class="panel next-stop"><div><div class="stop-kicker">ARRÊT SUIVANT</div><strong id="nextStopName">—</strong></div><span id="nextScheduled">—</span></section>
+      <section class="panel"><div class="section-title"><span>Progression</span><strong id="progressCount">0 / 0</strong></div><div id="progressList" class="progress-list"></div></section>
+    </section>
+
+    <section id="reportScreen" class="panel hidden">
+      <span class="eyebrow">COURSE TERMINÉE</span><h2>📋 Rapport de course</h2><div id="reportSummary" class="report-summary"></div><div id="reportTable" class="report-table"></div>
+      <div class="setup-actions"><button id="shareReportBtn" class="primary">↗ Partager le rapport</button><button id="newRunBtn" class="secondary">Nouvelle course</button></div>
+      <p id="reportStatus" class="status"></p>
+    </section>
+  </main>
+
+  <dialog id="settingsDialog"><form method="dialog" class="dialog-card"><button value="cancel" class="close-btn">×</button><span class="eyebrow">PARAMÈTRES</span><h2>Connexion à BreizhStops</h2>
+    <label for="apiBaseInput">Adresse de BreizhStops</label><input id="apiBaseInput" type="url" placeholder="https://votre-site-breizhstops.pages.dev">
+    <p class="help">L’application conducteur lit les lignes et les fiches horaires depuis l’API publique de BreizhStops.</p>
+    <div class="setup-actions"><button id="testConnectionBtn" type="button" class="secondary">Tester</button><button id="saveSettingsBtn" type="button" class="primary">Enregistrer</button></div><p id="settingsStatus" class="status"></p>
+  </form></dialog>
+  <script src="./app.js"></script>
+</body></html>
