@@ -1,0 +1,9 @@
+{
+  "name": "Outils Lesto — Conducteur",
+  "short_name": "Outils Lesto",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#050806",
+  "theme_color": "#050806",
+  "lang": "fr-FR"
+}
