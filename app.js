@@ -2,7 +2,7 @@ const state={apiBase:localStorage.getItem("outilsLestoBreizhStopsApi")||"",lines
 const $=id=>document.getElementById(id);
 const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-const api=async(path,options={})=>{const base=state.apiBase.replace(/\/$/,"");if(!base)throw new Error("Adresse BreizhStops non configurée.");const r=await fetch(base+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const type=r.headers.get("content-type")||"";const data=type.includes("json")?await r.json():await r.text();if(!r.ok)throw new Error((data&&data.error)||data||"Erreur API");return data};
+const api=async(path,options={})=>{const base=state.apiBase.replace(/\/$/,"");const url=base?base+path:"/api/breizhstops?path="+encodeURIComponent(path);const r=await fetch(url,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const type=r.headers.get("content-type")||"";const data=type.includes("json")?await r.json():await r.text();if(!r.ok)throw new Error((data&&data.error)||data||"Erreur API");return data};
 const minutes=t=>{if(!t)return null;const p=String(t).split(":").map(Number);return p[0]*60+(p[1]||0)};
 const delayText=sec=>{if(sec==null)return"—";const s=Math.round(sec),sign=s>0?"+":s<0?"−":"";const a=Math.abs(s),m=Math.floor(a/60);return sign+m+"m"+String(a%60).padStart(2,"0")};
 const distanceKm=(a,b)=>{const R=6371,p=Math.PI/180,dLat=(b.lat-a.lat)*p,dLon=(b.lon-a.lon)*p,x=Math.sin(dLat/2)**2+Math.cos(a.lat*p)*Math.cos(b.lat*p)*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(x))};
@@ -34,7 +34,7 @@ async function startRun(){
   const c=state.selectedCourse;if(!c)return;
   try{
     const course=await api("/api/public/sae/courses/"+encodeURIComponent(c.id));const stops=course.stops||[];if(!stops.length)throw new Error("Cette course ne contient aucun arrêt.");
-    state.run={course:course,startedAt:new Date().toISOString(),index:0};state.events=[];state.boardings=0;state.alightings=0;state.onboard=0;
+    const run=await api("/api/public/sae/runs",{method:"POST",body:JSON.stringify({course_id:course.id,date:todayIso()})});state.run={course:course,startedAt:new Date().toISOString(),index:Number(run.current_stop_index||0),id:run.id};state.events=[];state.boardings=0;state.alightings=0;state.onboard=0;
     $("setupCard").classList.add("hidden");$("reportScreen").classList.add("hidden");$("runScreen").classList.remove("hidden");$("runTitle").textContent=course.name||c.name;$("runMeta").textContent=(course.start_time||c.start_time||"—")+" · "+(course.service||"")+(course.girouette?" · Girouette "+course.girouette:"");renderRun();
   }catch(e){alert(e.message)}
 }
@@ -45,12 +45,11 @@ function renderRun(){
   $("progressList").innerHTML=(state.run.course.stops||[]).map((s,i)=>'<div class="progress-item '+(i<state.run.index?"done ":i===state.run.index?"current ":"")+'"><span><b>'+(i+1)+".</b> "+esc(s.name)+"</span><span>"+esc(s.scheduled_time||"—")+"</span></div>").join("");updateDistance();
 }
 function updateDistance(){const c=current();if(!c||!state.position){$("currentDistance").textContent=state.gpsEnabled?"Recherche GPS…":"GPS désactivé";return}const d=distanceKm(state.position,{lat:Number(c.lat),lon:Number(c.lon)})*1000;$("currentDistance").textContent=d>=1000?(d/1000).toFixed(1)+" km":Math.round(d)+" m"}
-function validateStop(){
-  const c=current();if(!c)return;const actual=new Date(),scheduled=minutes(c.scheduled_time),nowMin=actual.getHours()*60+actual.getMinutes()+actual.getSeconds()/60,sec=scheduled==null?null:Math.round((nowMin-scheduled)*60);
-  state.events.push({stop:c,actualTime:actual.toISOString(),delaySeconds:sec,boardings:state.boardings,alightings:state.alightings,onboardBefore:state.onboard,onboardAfter:Math.max(0,state.onboard+state.boardings-state.alightings)});
-  state.onboard=Math.max(0,state.onboard+state.boardings-state.alightings);state.boardings=0;state.alightings=0;state.run.index++;if(state.run.index>=state.run.course.stops.length){finishRun();return}renderRun();
+async function validateStop(){
+  const c=current();if(!c||!state.run?.id)return;const actual=new Date(),scheduled=minutes(c.scheduled_time),nowMin=actual.getHours()*60+actual.getMinutes()+actual.getSeconds()/60,sec=scheduled==null?null:Math.round((nowMin-scheduled)*60),after=Math.max(0,state.onboard+state.boardings-state.alightings);
+  try{await api("/api/public/sae/runs/"+encodeURIComponent(state.run.id)+"/validate-stop",{method:"POST",body:JSON.stringify({course_stop_id:c.id,stop_index:state.run.index,actual_time:actual.toISOString(),boardings:state.boardings,alightings:state.alightings,onboard_before:state.onboard,auto:false})});state.events.push({stop:c,actualTime:actual.toISOString(),delaySeconds:sec,boardings:state.boardings,alightings:state.alightings,onboardBefore:state.onboard,onboardAfter:after});state.onboard=after;state.boardings=0;state.alightings=0;state.run.index++;if(state.run.index>=state.run.course.stops.length){await finishRun();return}renderRun()}catch(e){alert(e.message)}
 }
-function finishRun(){stopGps();$("runScreen").classList.add("hidden");$("reportScreen").classList.remove("hidden");renderReport()}
+async function finishRun(){stopGps();if(state.run?.id){try{await api("/api/public/sae/runs/"+encodeURIComponent(state.run.id)+"/finish",{method:"POST",body:JSON.stringify({finished_at:new Date().toISOString()})})}catch(e){console.warn("Enregistrement de fin impossible:",e)}}$("runScreen").classList.add("hidden");$("reportScreen").classList.remove("hidden");renderReport()}
 function renderReport(){
   const c=state.run.course;$("reportSummary").innerHTML='<div><small>Course</small><strong>'+esc(c.name)+'</strong></div><div><small>Horaire</small><strong>'+esc(c.start_time||"—")+'</strong></div><div><small>Passages</small><strong>'+state.events.length+" / "+c.stops.length+'</strong></div><div><small>Voyageurs finaux</small><strong>'+state.onboard+"</strong></div>";
   $("reportTable").innerHTML='<table><thead><tr><th>#</th><th>Arrêt</th><th>Théo.</th><th>Réel</th><th>Écart</th><th>↑</th><th>↓</th><th>👥</th></tr></thead><tbody>'+state.events.map((e,i)=>'<tr><td>'+(i+1)+"</td><td>"+esc(e.stop.name)+"</td><td>"+esc(e.stop.scheduled_time||"—")+"</td><td>"+new Intl.DateTimeFormat("fr-FR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(new Date(e.actualTime))+"</td><td>"+delayText(e.delaySeconds)+"</td><td>"+e.boardings+"</td><td>"+e.alightings+"</td><td>"+e.onboardAfter+"</td></tr>").join("")+"</tbody></table>";state.reportText=buildReportText();
